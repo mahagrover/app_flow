@@ -1,0 +1,27 @@
+jobs:
+  sanity-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Upload app build to LambdaTest
+        run: |
+          curl -u "${{ secrets.LT_USERNAME }}:${{ secrets.LT_ACCESS_KEY }}" \
+            -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
+            -F "appFile=@./build/output/app.apk" \
+            -F "type=data" \
+            -F "custom_id=${{ secrets.LT_CUSTOM_ID }}"
+
+      - name: Trigger Sanity Test on TestMu AI
+        id: trigger-test
+        run: |
+          response=$(curl --location 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
+            --header 'Content-Type: application/json' \
+            --header 'Authorization: Basic <Base64Auth>' \
+            --data '{
+                "test_run_id": "<test_run_id>",
+                "concurrency": 1,
+                "android_app_id": "lt://${{ secrets.LT_CUSTOM_ID }}"
+            }')
+          echo "Response: $response"
