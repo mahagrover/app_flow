@@ -1,0 +1,12 @@
+- name: Upload app build to LambdaTest
+  run: |
+    curl.exe -u "$LT_USERNAME:$LT_ACCESS_KEY" \
+      -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
+      -F "appFile=@./build/output/app-debug.apk" \
+      -F "name=Debug_App" \
+      -F "custom_id=sampleName" \
+      -F "type=android" \
+      -F "visibility=individual"
+  env:
+    LT_USERNAME: ${{ secrets.LT_USERNAME }}
+    LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
