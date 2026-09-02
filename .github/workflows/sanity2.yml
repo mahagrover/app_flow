@@ -1,0 +1,61 @@
+name: Run Sanity Tests on TestMu AI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  sanity-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Upload app build to LambdaTest
+        run: |
+          curl -u "${{ secrets.LT_USERNAME }}:${{ secrets.LT_ACCESS_KEY }}" \
+            -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
+            -F "appFile=@./build/output/app.apk" \
+            -F "type=data" \
+            -F "custom_id=${{ secrets.LT_CUSTOM_ID }}"
+
+      - name: Trigger Sanity Test on TestMu AI
+        id: trigger-test
+        run: |
+          echo "Triggering sanity tests on TestMu AI with latest app build"
+          response=$(curl --location 'https://test-manager-api.lambdatest.com/api/atm/v1/hyperexecute' \
+            --header 'accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Basic ${{ secrets.LT_BASE64_AUTH }}" \
+            --data '{
+                "test_run_id": "<test_run_id>",
+                "concurrency": 1,
+                "android_app_id": "lt://${{ secrets.LT_CUSTOM_ID }}"
+            }')
+          echo "Response: $response"
+          job_id=$(echo $response | jq -r '.app_job_id')
+          echo "Job ID: $job_id"
+          echo "job_id=$job_id" >> "$GITHUB_OUTPUT"
+
+      - name: Check Test Status
+        run: |
+          echo "Checking test status"
+          job_id=${{ steps.trigger-test.outputs.job_id }}
+          sleep 240  # Wait before checking the status
+          response=$(curl --location "https://api.hyperexecute.cloud/v2.0/job/$job_id" \
+            --header "accept: application/json" \
+            --header "Authorization: Basic ${{ secrets.LT_BASE64_AUTH }}")
+
+          echo "Response: $response"
+          status=$(echo $response | jq -r '.data.status')
+          echo "Test status: $status"
+          if [[ "$status" != "completed" ]]; then
+            echo "Tests failed. Exiting with error."
+            exit 1
+          fi
+          echo "Sanity tests passed successfully."
